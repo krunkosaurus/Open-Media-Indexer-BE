@@ -1,0 +1,18 @@
+syntax = "proto2";
+
+package vector_tile;
+
+option optimize_for = LITE_RUNTIME;
+
+message NotPacked {
+  repeated int32 value = 1;
+  repeated int32 types = 2;
+}
+message FalsePacked {
+  repeated int32 value = 1 [packed=false];
+  repeated int32 types = 2 [packed=false];
+}
+message Packed {
+  repeated int32 value = 1 [packed=true];
+  repeated int32 types = 2 [packed=true];
+}

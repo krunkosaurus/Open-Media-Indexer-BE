@@ -6,7 +6,7 @@ import exifr from 'exifr';
 import fg from 'fast-glob';
 import readline from 'readline';
 
-const MEDIA_DIR = '/path/to/your/media/folder'; // Update this path
+const MEDIA_DIR = '/Users/krunkosaurus/Dropbox/Camera Uploads';
 const STATE_FILE = './index_state.json';
 const OUTPUT_FILE = './intermediate_data.json';
 
@@ -46,7 +46,6 @@ function getExtension(filePath) {
   return path.extname(filePath).toLowerCase();
 }
 
-// Use ffprobe for video files
 function ffprobeMetadata(filePath) {
   return new Promise((resolve, reject) => {
     const cmd = `ffprobe -v quiet -print_format json -show_format -show_streams "${filePath}"`;
@@ -62,7 +61,6 @@ function ffprobeMetadata(filePath) {
   });
 }
 
-// Parse location from QuickTime metadata if present
 function parseVideoLocation(data) {
   const tags = data?.format?.tags || {};
   const isoLocation = tags['com.apple.quicktime.location.ISO6709'];
@@ -141,7 +139,8 @@ async function main() {
   if (state.totalFiles > 0 && state.processedCount >= state.totalFiles) {
     // Already processed all files
     const answer = await promptUser('Indexing appears complete. Overwrite and start over? (y/n): ');
-    if (answer === 'y' || answer === 'yes') {
+    const userChoice = await answer;
+    if (userChoice === 'y' || userChoice === 'yes') {
       // Reset state and output
       state = { processedCount: 0, totalFiles: 0, fileList: [] };
       outputData = [];
@@ -154,17 +153,16 @@ async function main() {
     }
   }
 
-  let files;
-  if (state.fileList && state.fileList.length > 0 && state.processedCount < state.fileList.length) {
-    // Resume scenario
-    files = state.fileList.slice(state.processedCount);
-  } else {
-    // Fresh run or reset scenario
+  // If totalFiles is zero (fresh start), scan now
+  if (state.totalFiles === 0) {
     const allFiles = await fg([`${MEDIA_DIR}/**/*.{jpg,jpeg,heic,heif,png,mov,mp4}`], { dot: false });
     state.totalFiles = allFiles.length;
     state.fileList = allFiles;
-    files = allFiles;
+    state.processedCount = 0;
+    await saveState(state);
   }
+
+  const files = state.fileList.slice(state.processedCount);
 
   console.log(`Total files: ${state.totalFiles}. Resuming at: ${state.processedCount}`);
 
