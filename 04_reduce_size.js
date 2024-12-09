@@ -1,9 +1,17 @@
+// normalize_data.js
 import { promises as fs } from 'fs';
+import path from 'path';
 
-const INPUT_FILE = './final_data.json';
-const OUTPUT_FILE = './04_reduced.json';
+const FILES_DIR = './files';
+const INPUT_FILE = path.join(FILES_DIR, 'final_data.json');
+const OUTPUT_FILE = path.join(FILES_DIR, '04_reduced.json');
+
+async function ensureFilesDir() {
+  await fs.mkdir(FILES_DIR, { recursive: true });
+}
 
 (async () => {
+  await ensureFilesDir();
   const content = await fs.readFile(INPUT_FILE, 'utf8');
   const data = JSON.parse(content);
 
@@ -23,14 +31,11 @@ const OUTPUT_FILE = './04_reduced.json';
       nextId++;
     }
 
-    // Replace direct fields with location_id
     item.location_id = locationMap.get(key);
 
-    // Optional: Remove original city/state/country to save even more space
     delete item.city;
     delete item.state;
     delete item.country;
-    //delete item.filename;
   }
 
   const normalizedData = { locations, items: data };

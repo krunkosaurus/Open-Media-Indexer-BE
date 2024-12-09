@@ -1,13 +1,19 @@
 // augment_locations.js
 import { promises as fs } from 'fs';
+import path from 'path';
 import fetch from 'node-fetch';
 
-const INPUT_FILE = './final_data.json';
-const OUTPUT_FILE = './final_data.json';
-const CACHE_FILE = './geo_cache.json';
+const FILES_DIR = './files';
+const INPUT_FILE = path.join(FILES_DIR, 'final_data.json');
+const OUTPUT_FILE = path.join(FILES_DIR, 'final_data.json');
+const CACHE_FILE = path.join(FILES_DIR, 'geo_cache.json');
 
-const BATCH_SIZE = 50; // adjust as needed
+const BATCH_SIZE = 50; 
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search?format=jsonv2';
+
+async function ensureFilesDir() {
+  await fs.mkdir(FILES_DIR, { recursive: true });
+}
 
 async function loadData() {
   const content = await fs.readFile(INPUT_FILE, 'utf8');
@@ -42,24 +48,23 @@ async function geocodeCity(city, country) {
   if (json.length === 0) return null;
 
   const place = json[0];
-  // Nominatim returns address details if addressdetails=1 is set.
   const addr = place.address || {};
 
   return {
-    city: addr.city || addr.town || addr.village || city, // fallback to the known city
+    city: addr.city || addr.town || addr.village || city,
     state: addr.state || '',
     country: addr.country || country || ''
   };
 }
 
 async function main() {
+  await ensureFilesDir();
+
   let data = await loadData();
   let cache = await loadCache();
 
-  // Filter items that need state info. Assume we have city and country from previous step.
   let itemsToProcess = data.filter(item => item.city && !item.state);
 
-  // If no items need processing, we’re done.
   if (itemsToProcess.length === 0) {
     console.log('No items need state augmentation.');
     await saveData(data);
@@ -71,32 +76,26 @@ async function main() {
   let processedCount = 0;
   for (let i = 0; i < itemsToProcess.length; i++) {
     const item = itemsToProcess[i];
-    const cityKey = (item.city + '|' + (item.country || '')).toLowerCase(); // cache key
+    const cityKey = (item.city + '|' + (item.country || '')).toLowerCase();
 
-    // Check cache first
     let cachedResult = cache[cityKey];
     if (!cachedResult) {
-      // Not in cache, call external service
       const geo = await geocodeCity(item.city, item.country);
       if (geo) {
         cachedResult = { state: geo.state, country: geo.country };
-        // Update cache
         cache[cityKey] = cachedResult;
       } else {
-        // Could not geocode city, leave state empty
         cachedResult = { state: '', country: item.country };
-        cache[cityKey] = cachedResult; // cache failed attempt too
+        cache[cityKey] = cachedResult;
       }
     }
 
-    // Update item with state and possibly better country if found
     item.state = cachedResult.state;
     if (cachedResult.country) item.country = cachedResult.country;
 
     processedCount++;
     if (processedCount % BATCH_SIZE === 0 || processedCount === itemsToProcess.length) {
       console.log(`Processed ${processedCount} / ${itemsToProcess.length} city lookups`);
-      // Save partial results and cache
       await saveData(data);
       await saveCache(cache);
     }

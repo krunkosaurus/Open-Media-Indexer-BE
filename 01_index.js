@@ -1,4 +1,6 @@
 // index.js
+import dotenv from 'dotenv';
+dotenv.config();
 import { promises as fs } from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
@@ -7,14 +9,19 @@ import fg from 'fast-glob';
 import readline from 'readline';
 
 const MEDIA_DIR = '/Users/krunkosaurus/Dropbox/Camera Uploads';
-const STATE_FILE = './index_state.json';
-const OUTPUT_FILE = './intermediate_data.json';
+const FILES_DIR = './files';
+const STATE_FILE = path.join(FILES_DIR, 'index_state.json');
+const OUTPUT_FILE = path.join(FILES_DIR, 'intermediate_data.json');
 
 const BATCH_SIZE = 50; // Number of files to process before writing progress
 
 // Determine file type (image/video)
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.heic', '.heif', '.png']);
 const VIDEO_EXTENSIONS = new Set(['.mov', '.mp4']);
+
+async function ensureFilesDir() {
+  await fs.mkdir(FILES_DIR, { recursive: true });
+}
 
 async function loadState() {
   try {
@@ -132,12 +139,13 @@ async function promptUser(question) {
 }
 
 async function main() {
+  await ensureFilesDir();
+
   let state = await loadState();
   let outputData = await loadOutputData();
 
   // Check if previously completed
   if (state.totalFiles > 0 && state.processedCount >= state.totalFiles) {
-    // Already processed all files
     const answer = await promptUser('Indexing appears complete. Overwrite and start over? (y/n): ');
     const userChoice = await answer;
     if (userChoice === 'y' || userChoice === 'yes') {
@@ -176,8 +184,6 @@ async function main() {
         result = await processImage(filePath);
       } else if (VIDEO_EXTENSIONS.has(ext)) {
         result = await processVideo(filePath);
-      } else {
-        // Not a known image/video extension, skip
       }
 
       if (result && result.latitude && result.longitude) {

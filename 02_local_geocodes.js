@@ -1,11 +1,17 @@
 // local_geocode.js
 import { promises as fs } from 'fs';
+import path from 'path';
 import allTheCities from 'all-the-cities';
 
-const INPUT_FILE = './intermediate_data.json';
-const STATE_FILE = './geocode_state.json';
-const OUTPUT_FILE = './final_data.json';
+const FILES_DIR = './files';
+const INPUT_FILE = path.join(FILES_DIR, 'intermediate_data.json');
+const STATE_FILE = path.join(FILES_DIR, 'geocode_state.json');
+const OUTPUT_FILE = path.join(FILES_DIR, 'final_data.json');
 const BATCH_SIZE = 50;
+
+async function ensureFilesDir() {
+  await fs.mkdir(FILES_DIR, { recursive: true });
+}
 
 // Simple Haversine formula to compute distance between two lat/lon points
 function haversineDistance(lat1, lon1, lat2, lon2) {
@@ -48,7 +54,6 @@ function findNearestCity(lat, lon) {
   let minDist = Infinity;
 
   for (const city of allTheCities) {
-    // city.loc.coordinates is [longitude, latitude]
     const cityLon = city.loc.coordinates[0];
     const cityLat = city.loc.coordinates[1];
     const dist = haversineDistance(lat, lon, cityLat, cityLon);
@@ -61,17 +66,16 @@ function findNearestCity(lat, lon) {
 }
 
 async function main() {
+  await ensureFilesDir();
+
   let state = await loadState();
   let data = await loadData();
 
-  // Filter items that need city info:
-  // Those with latitude/longitude but empty city/country fields
   let itemsToProcess = data.filter(item => item.latitude && item.longitude && !item.city && !item.country);
 
   if (state.totalItems === 0) {
     state.totalItems = itemsToProcess.length;
   } else {
-    // Resume scenario: skip processed items
     itemsToProcess = itemsToProcess.slice(state.processedCount);
   }
 
@@ -87,14 +91,12 @@ async function main() {
       if (city) {
         item.city = city.name;
         item.country = city.country || '';
-        // 'all-the-cities' doesn't provide states, so we leave it blank
         item.state = '';
       }
     }
 
     state.processedCount++;
 
-    // Periodically save progress
     if (state.processedCount % BATCH_SIZE === 0 || state.processedCount === state.totalItems) {
       console.log(`Local geocoded ${state.processedCount} / ${state.totalItems}`);
       await saveData(data);
