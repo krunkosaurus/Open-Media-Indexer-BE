@@ -33,7 +33,7 @@ This backend tool extracts EXIF data from photos, location metadata from videos,
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/your-username/Open-Media-Indexer-BE.git
+   git clone git@github.com:krunkosaurus/Open-Media-Indexer-BE.git
    cd Open-Media-Indexer-BE
    ```
 
